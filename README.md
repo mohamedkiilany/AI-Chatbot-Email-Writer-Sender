@@ -2,6 +2,8 @@
 
 An **n8n automation workflow** that turns a Telegram message into a professionally written and delivered email — powered by AI.
 
+<img width="3556" height="1361" alt="Screenshot 2026-03-08 205342" src="https://github.com/user-attachments/assets/046fdccc-c384-4975-a537-2241c871cf68" />
+
 ---
 
 ## 🚀 Overview
