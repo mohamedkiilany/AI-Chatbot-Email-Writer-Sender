@@ -1,0 +1,337 @@
+{
+  "name": "AI Chatbot Email Writer & Sender",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const message = $input.first().json.message?.text || '';\n\nif (!message.trim()) {\n  return [{ json: { valid: false, error: 'empty_message', originalMessage: message } }];\n}\n\nconst emailRegex = /[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/;\nconst hasEmail = emailRegex.test(message);\n\nif (!hasEmail) {\n  return [{ json: { valid: false, error: 'no_email', originalMessage: message } }];\n}\n\nreturn [{ json: { valid: true, originalMessage: message } }];"
+      },
+      "id": "5cd2937f-a714-4f9f-a0a7-15e9924e0507",
+      "name": "Validate Input1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "699d2cf7-7767-4573-8ac0-ccdf0425d4cb",
+      "name": "Has Valid Email?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Email Sender').item.json.message.chat.id }}",
+        "text": "=📌 *How to use this bot:*\nSend your message in this format:\n`recipient@email.com Your message here`\n\n*Example:*\n`john@gmail.com Please remind me about tomorrow's meeting`\n\nPlease check your message ",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        832
+      ],
+      "id": "9178b6b1-6181-47fa-85b6-2a1af10b5f28",
+      "name": "Error - No Email Found1",
+      "webhookId": "6708dd99-0550-45d1-9334-860960f6511e",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VddULDWBrBWcMG3",
+          "name": "TROSCEmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.originalMessage }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a professional email writing assistant.\n\nThe user sends a message in this format:\n\"EMAIL_ADDRESS their message or intent here\"\n\nYour job:\n1. Extract the email address from the beginning of the message\n2. Understand the user's intent from the rest of the message\n3. Write a complete, formal, and polite professional email based on the user's intent\n4. Create an appropriate subject line\n\nEMAIL WRITING RULES:\n- Use formal, professional language at all times\n- Start with a proper greeting (e.g., \"Dear [Name],\" or \"Dear Sir/Madam,\")\n- Write in full sentences and paragraphs\n- Be polite, respectful, and clear\n- End with a professional closing (e.g., \"Yours sincerely,\" or \"Best regards,\")\n- Sign off as \"mohamed ibrahim\" unless the user specifies a name\n- The email should be well-structured: greeting → purpose → details → closing\n- Expand the user's brief message into a full, complete professional email\n\nIMPORTANT RULES:\n- The \"to\" field MUST be the real email address extracted from the user message\n- NEVER use placeholder emails like recipient@example.com\n- Respond ONLY with raw JSON, no markdown, no extra text\n\nUse this exact JSON format:\n{\"to\":\"extracted@email.com\",\"subject\":\"subject here\",\"body\":\"full formal email body here\"}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -368,
+        432
+      ],
+      "id": "0a507a42-0544-496f-8e6f-aeaaa3eb4412",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        656
+      ],
+      "id": "aa727483-fc0d-454b-8a0a-01b9a7fd51b9",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "15xh0ZoRrZ8649Qp",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json.text;\n\nif (!aiResponse) {\n  throw new Error('No response from LLM Chain.');\n}\n\nlet emailData;\ntry {\n  const cleaned = aiResponse\n    .replace(/```json|```/g, '')\n    .replace(/^[^{]*/, '')\n    .replace(/[^}]*$/, '')\n    .trim();\n  emailData = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('AI did not return valid JSON. Raw: ' + aiResponse);\n}\n\nif (!emailData.to || !emailData.to.includes('@')) {\n  throw new Error('AI could not extract a valid email address.');\n}\n\nif (!emailData.body || emailData.body.length < 20) {\n  throw new Error('AI did not generate a proper email body.');\n}\n\nreturn [{\n  json: {\n    to: emailData.to.trim(),\n    subject: emailData.subject || 'Message from AI Assistant',\n    body: emailData.body\n  }\n}];"
+      },
+      "id": "decd7ae2-618d-4b8a-a064-4c39e815146d",
+      "name": "Code - Extract Email Parts1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1f2d0a8-66fa-414b-b5a7-e0a2170756a4",
+      "name": "Gmail - Send Email1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        176,
+        448
+      ],
+      "webhookId": "40a38156-8656-4f99-82e7-1047086c3ce6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "h7jwmbxFdbktqrvV",
+          "name": "Gmail account 3"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Email Sender').item.json.message.chat.id }}",
+        "text": "=✅ *Email Sent Successfully!*\n\n📧 *To:* `{{ $('Code - Extract Email Parts1').item.json.to }}`\n📌 *Subject:* {{ $('Code - Extract Email Parts1').item.json.subject }}\n\nYour professional email has been written and delivered. ✉️",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        416
+      ],
+      "id": "1c50cd35-020e-40b0-8f40-031dab06fd6c",
+      "name": "Success - Email Sent1",
+      "webhookId": "edde89aa-247f-4dcc-a1f6-6db16481adea",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VddULDWBrBWcMG3",
+          "name": "TROSCEmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Email Sender').item.json.message.chat.id }}",
+        "text": "=⚠️ *Email Could Not Be Sent*\n\nSomething went wrong while trying to send your email.\n\nPlease check:\n• ✅ The email address is correct\n• ✅ Your Gmail account is connected\n• ✅ Your message is clear and complete\n\nPlease try again or contact support if the issue continues.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        576
+      ],
+      "id": "dc77b280-e7b5-4105-869a-e4cb74dd0da5",
+      "name": "Error - Send Failed1",
+      "webhookId": "adb77ea7-5545-4451-ae08-59433da5ca9d",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VddULDWBrBWcMG3",
+          "name": "TROSCEmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -960,
+        608
+      ],
+      "id": "183413a2-10be-4e66-920b-43d4ca61f818",
+      "name": "Email Sender",
+      "webhookId": "9859875e-497c-495e-9622-a136f934bca3",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VddULDWBrBWcMG3",
+          "name": "TROSCEmail"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Validate Input1": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Email?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Email?1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error - No Email Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract Email Parts1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract Email Parts1": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Send Email1": {
+      "main": [
+        [
+          {
+            "node": "Success - Email Sent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error - Send Failed1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Sender": {
+      "main": [
+        [
+          {
+            "node": "Validate Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "477d7237-28c5-4e24-bc23-ee773542f710",
+  "meta": {
+    "instanceId": "646737413e9a5f32ec0b2b7767a46bf60ab19ec43865bb3cf2239e3896345586"
+  },
+  "id": "TukVxpFijDP3zYfA",
+  "tags": []
+}
